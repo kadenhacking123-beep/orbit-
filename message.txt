@@ -1,0 +1,392 @@
+-- Orbit-Hub | Halloween Edition
+-- discord.gg/orbit-scripts
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+local player = Players.LocalPlayer
+
+-- ============================================================
+-- PLATFORM LOGIC
+-- ============================================================
+local platform
+local platformEnabled = false
+local rising = false
+local riseSpeed = 10
+local platformHeight = 5
+local platformY = 0
+local snapDistance = 30
+
+local function createPlatform()
+    if platform then platform:Destroy() end
+    platform = Instance.new("Part")
+    platform.Name = "FollowPlatform"
+    platform.Size = Vector3.new(12, 1, 12)
+    platform.Anchored = true
+    platform.CanCollide = true
+    platform.Material = Enum.Material.SmoothPlastic
+    platform.Color = Color3.fromRGB(255, 120, 0)
+    local character = player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if root then
+        platformY = root.Position.Y - platformHeight
+        platform.Position = Vector3.new(root.Position.X, platformY, root.Position.Z)
+    end
+    platform.Parent = workspace
+end
+
+local function setPlatformEnabled(state)
+    platformEnabled = state
+    if platformEnabled then
+        createPlatform()
+    else
+        rising = false
+        if platform then platform:Destroy() platform = nil end
+    end
+end
+
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    if input.KeyCode == Enum.KeyCode.R then
+        if platformEnabled then rising = not rising end
+    end
+end)
+
+RunService.Heartbeat:Connect(function(dt)
+    if not platformEnabled or not platform or not platform.Parent then return end
+    local character = player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    if rising then
+        platformY = platformY + riseSpeed * dt
+    end
+
+    local targetY = root.Position.Y - platformHeight
+    if targetY > platformY then
+        platformY = targetY
+    end
+
+    if root.Position.Y < platformY - snapDistance then
+        if not root:FindFirstChild("OrbitPull") then
+            local bv = Instance.new("BodyVelocity")
+            bv.Name = "OrbitPull"
+            bv.MaxForce = Vector3.new(0, 1e6, 0)
+            bv.Velocity = Vector3.new(0, 200, 0)
+            bv.Parent = root
+            task.delay(0.35, function()
+                if bv and bv.Parent then bv:Destroy() end
+            end)
+        end
+    end
+
+    platform.Position = Vector3.new(root.Position.X, platformY, root.Position.Z)
+end)
+
+player.CharacterAdded:Connect(function()
+    if platformEnabled then task.wait(1) createPlatform() end
+end)
+
+-- ============================================================
+-- ORBIT-HUB GUI
+-- ============================================================
+local function makeDraggable(frame, handle)
+    handle = handle or frame
+    local dragging, dragInput, dragStart, startPos
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+    handle.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input ~= dragInput then return end
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+local parentGui
+if gethui then
+    parentGui = gethui()
+elseif CoreGui then
+    parentGui = CoreGui
+else
+    parentGui = player:WaitForChild("PlayerGui")
+end
+
+local old = parentGui:FindFirstChild("OrbitHub")
+if old then old:Destroy() end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "OrbitHub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = parentGui
+
+local ORANGE = Color3.fromRGB(255, 120, 0)
+local ORANGE_DARK = Color3.fromRGB(180, 75, 0)
+local BLACK = Color3.fromRGB(15, 15, 15)
+local BLACK_SOFT = Color3.fromRGB(25, 25, 25)
+
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.new(0, 320, 0, 210)
+Main.Position = UDim2.new(0.5, -160, 0.5, -105)
+Main.BackgroundColor3 = BLACK
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 8)
+MainCorner.Parent = Main
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = ORANGE
+MainStroke.Thickness = 2
+MainStroke.Parent = Main
+
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 44)
+TitleBar.BackgroundColor3 = BLACK_SOFT
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = Main
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.Parent = TitleBar
+
+local TitleMask = Instance.new("Frame")
+TitleMask.Size = UDim2.new(1, 0, 0, 12)
+TitleMask.Position = UDim2.new(0, 0, 1, -12)
+TitleMask.BackgroundColor3 = BLACK_SOFT
+TitleMask.BorderSizePixel = 0
+TitleMask.Parent = TitleBar
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -60, 0, 20)
+Title.Position = UDim2.new(0, 12, 0, 4)
+Title.BackgroundTransparency = 1
+Title.Text = "Orbit-Hub | Halloween"
+Title.TextColor3 = ORANGE
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TitleBar
+
+local TitleSub = Instance.new("TextLabel")
+TitleSub.Size = UDim2.new(1, -60, 0, 14)
+TitleSub.Position = UDim2.new(0, 12, 0, 25)
+TitleSub.BackgroundTransparency = 1
+TitleSub.Text = "discord.gg/orbit-scripts"
+TitleSub.TextColor3 = ORANGE_DARK
+TitleSub.Font = Enum.Font.Gotham
+TitleSub.TextSize = 11
+TitleSub.TextXAlignment = Enum.TextXAlignment.Left
+TitleSub.Parent = TitleBar
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -36, 0, 7)
+CloseBtn.BackgroundColor3 = BLACK
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = ORANGE
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 16
+CloseBtn.BorderSizePixel = 0
+CloseBtn.Parent = TitleBar
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.Parent = CloseBtn
+
+CloseBtn.MouseButton1Click:Connect(function()
+    setPlatformEnabled(false)
+    ScreenGui:Destroy()
+end)
+
+makeDraggable(Main, TitleBar)
+
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, -24, 0, 24)
+Status.Position = UDim2.new(0, 12, 0, 56)
+Status.BackgroundTransparency = 1
+Status.Text = "Status: DISABLED"
+Status.TextColor3 = ORANGE_DARK
+Status.Font = Enum.Font.Gotham
+Status.TextSize = 14
+Status.TextXAlignment = Enum.TextXAlignment.Left
+Status.Parent = Main
+
+local EnableBtn = Instance.new("TextButton")
+EnableBtn.Size = UDim2.new(1, -24, 0, 42)
+EnableBtn.Position = UDim2.new(0, 12, 0, 88)
+EnableBtn.BackgroundColor3 = ORANGE
+EnableBtn.Text = "ENABLE"
+EnableBtn.TextColor3 = BLACK
+EnableBtn.Font = Enum.Font.GothamBold
+EnableBtn.TextSize = 16
+EnableBtn.BorderSizePixel = 0
+EnableBtn.AutoButtonColor = false
+EnableBtn.Parent = Main
+
+local EnableCorner = Instance.new("UICorner")
+EnableCorner.CornerRadius = UDim.new(0, 6)
+EnableCorner.Parent = EnableBtn
+
+local RiseBtn = Instance.new("TextButton")
+RiseBtn.Size = UDim2.new(0.48, -14, 0, 34)
+RiseBtn.Position = UDim2.new(0, 12, 0, 142)
+RiseBtn.BackgroundColor3 = BLACK_SOFT
+RiseBtn.Text = "RISE: OFF"
+RiseBtn.TextColor3 = ORANGE
+RiseBtn.Font = Enum.Font.GothamBold
+RiseBtn.TextSize = 13
+RiseBtn.BorderSizePixel = 0
+RiseBtn.AutoButtonColor = false
+RiseBtn.Parent = Main
+
+local RiseCorner = Instance.new("UICorner")
+RiseCorner.CornerRadius = UDim.new(0, 6)
+RiseCorner.Parent = RiseBtn
+
+local RiseStroke = Instance.new("UIStroke")
+RiseStroke.Color = ORANGE_DARK
+RiseStroke.Thickness = 1
+RiseStroke.Parent = RiseBtn
+
+local HideBtn = Instance.new("TextButton")
+HideBtn.Size = UDim2.new(0.48, -14, 0, 34)
+HideBtn.Position = UDim2.new(0.52, 2, 0, 142)
+HideBtn.BackgroundColor3 = BLACK_SOFT
+HideBtn.Text = "HIDE"
+HideBtn.TextColor3 = ORANGE
+HideBtn.Font = Enum.Font.GothamBold
+HideBtn.TextSize = 13
+HideBtn.BorderSizePixel = 0
+HideBtn.AutoButtonColor = false
+HideBtn.Parent = Main
+
+local HideCorner = Instance.new("UICorner")
+HideCorner.CornerRadius = UDim.new(0, 6)
+HideCorner.Parent = HideBtn
+
+local HideStroke = Instance.new("UIStroke")
+HideStroke.Color = ORANGE_DARK
+HideStroke.Thickness = 1
+HideStroke.Parent = HideBtn
+
+local Footer = Instance.new("TextButton")
+Footer.Size = UDim2.new(1, -24, 0, 16)
+Footer.Position = UDim2.new(0, 12, 1, -20)
+Footer.BackgroundTransparency = 1
+Footer.Text = "discord.gg/orbit-scripts"
+Footer.TextColor3 = ORANGE_DARK
+Footer.Font = Enum.Font.Gotham
+Footer.TextSize = 11
+Footer.TextXAlignment = Enum.TextXAlignment.Center
+Footer.AutoButtonColor = false
+Footer.Parent = Main
+
+Footer.MouseButton1Click:Connect(function()
+    if setclipboard then
+        setclipboard("discord.gg/orbit-scripts")
+    end
+    Footer.Text = "copied!"
+    task.wait(1)
+    Footer.Text = "discord.gg/orbit-scripts"
+end)
+
+local OpenIcon = Instance.new("TextButton")
+OpenIcon.Size = UDim2.new(0, 52, 0, 52)
+OpenIcon.Position = UDim2.new(0, 20, 0.5, -26)
+OpenIcon.BackgroundColor3 = BLACK
+OpenIcon.Text = "O"
+OpenIcon.TextColor3 = ORANGE
+OpenIcon.Font = Enum.Font.GothamBold
+OpenIcon.TextSize = 28
+OpenIcon.BorderSizePixel = 0
+OpenIcon.Visible = false
+OpenIcon.Parent = ScreenGui
+
+local OpenCorner = Instance.new("UICorner")
+OpenCorner.CornerRadius = UDim.new(0, 26)
+OpenCorner.Parent = OpenIcon
+
+local OpenStroke = Instance.new("UIStroke")
+OpenStroke.Color = ORANGE
+OpenStroke.Thickness = 2
+OpenStroke.Parent = OpenIcon
+
+makeDraggable(OpenIcon)
+
+EnableBtn.MouseButton1Click:Connect(function()
+    if not platformEnabled then
+        setPlatformEnabled(true)
+        EnableBtn.Text = "DISABLE"
+        EnableBtn.BackgroundColor3 = BLACK_SOFT
+        EnableBtn.TextColor3 = ORANGE
+        Status.Text = "Status: ENABLED"
+        Status.TextColor3 = ORANGE
+    else
+        setPlatformEnabled(false)
+        EnableBtn.Text = "ENABLE"
+        EnableBtn.BackgroundColor3 = ORANGE
+        EnableBtn.TextColor3 = BLACK
+        Status.Text = "Status: DISABLED"
+        Status.TextColor3 = ORANGE_DARK
+        RiseBtn.Text = "RISE: OFF"
+        RiseBtn.BackgroundColor3 = BLACK_SOFT
+        RiseBtn.TextColor3 = ORANGE
+    end
+end)
+
+EnableBtn.MouseEnter:Connect(function()
+    if platformEnabled then
+        EnableBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    else
+        EnableBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 40)
+    end
+end)
+EnableBtn.MouseLeave:Connect(function()
+    if platformEnabled then
+        EnableBtn.BackgroundColor3 = BLACK_SOFT
+    else
+        EnableBtn.BackgroundColor3 = ORANGE
+    end
+end)
+
+RiseBtn.MouseButton1Click:Connect(function()
+    if not platformEnabled then return end
+    rising = not rising
+    RiseBtn.Text = rising and "RISE: ON" or "RISE: OFF"
+    RiseBtn.BackgroundColor3 = rising and ORANGE or BLACK_SOFT
+    RiseBtn.TextColor3 = rising and BLACK or ORANGE
+end)
+
+HideBtn.MouseButton1Click:Connect(function()
+    Main.Visible = false
+    OpenIcon.Visible = true
+end)
+
+OpenIcon.MouseButton1Click:Connect(function()
+    Main.Visible = true
+    OpenIcon.Visible = false
+end)
